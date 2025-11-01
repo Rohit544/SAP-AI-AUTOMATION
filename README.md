@@ -111,7 +111,7 @@ This project aims to automate various SAP business processes using:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/sap-ai-automation.git
+git clone https://github.com/Rohit544/SAP-AI-AUTOMATION.git
 cd sap-ai-automation
 ```
 
