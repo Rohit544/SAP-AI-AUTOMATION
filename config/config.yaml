@@ -1,0 +1,33 @@
+  FI:
+  company_code: "1000"
+  default_currency: "USD"
+  fiscal_year_variant: "K4"
+  
+  # GL Account Mappings by Category
+  gl_account_mappings:
+    office_supplies: "520100"
+    travel_expenses: "520200"
+    it_services: "520300"
+    consulting: "520400"
+    marketing: "520500"
+    utilities: "521000"
+    rent: "521100"
+    
+  # Tax Codes by Country
+  tax_codes:
+    US: "I0"
+    UK: "I1"
+    DE: "I2"
+    IN: "I3"
+    
+  # Payment Terms
+  payment_terms:
+    net_30: "0001"
+    net_60: "0002"
+    cash_on_delivery: "0003"
+    
+  # Approval Thresholds
+  approval:
+    auto_post_below: 1000.00
+    manager_approval_above: 10000.00
+    cfo_approval_above: 50000.00
