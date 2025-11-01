@@ -1,0 +1,19 @@
+# ===== config/modules/qm_config.yaml =====
+qm:
+  module_name: "Quality Management"
+  module_code: "QM"
+  enabled: true
+  
+  plant: "1000"
+  inspection_type: "01"  # Goods receipt
+  
+  auto_create_inspection_lot: true
+  auto_usage_decision: false
+  
+  quality_levels:
+    acceptable_quality_level: 2.5
+    rejection_threshold: 5.0
+  
+  bapis:
+    - BAPI_INSPECTIONLOT_CREATE
+    - BAPI_QUALNOT_CREATE

@@ -1,0 +1,25 @@
+# ===== config/modules/mm_config.yaml =====
+mm:
+  module_name: "Materials Management"
+  module_code: "MM"
+  enabled: true
+  
+  purchasing_org: "1000"
+  purchasing_group: "001"
+  company_code: "1000"
+  
+  auto_create_pr: true
+  auto_convert_pr_to_po: false
+  auto_post_gr: true
+  
+  approval_workflow:
+    enabled: true
+    thresholds:
+      level_1: 5000
+      level_2: 10000
+      level_3: 50000
+  
+  bapis:
+    - BAPI_PO_CREATE1
+    - BAPI_PO_GETDETAIL
+    - BAPI_GOODSMVT_CREATE

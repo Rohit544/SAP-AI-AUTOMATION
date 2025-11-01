@@ -1,0 +1,29 @@
+# ===== config/modules/fi_config.yaml =====
+fi:
+  module_name: "Financial Accounting"
+  module_code: "FI"
+  enabled: true
+  
+  sub_modules:
+    accounts_payable:
+      enabled: true
+      auto_post: true
+      approval_threshold: 10000
+      payment_terms_default: "0001"
+    
+    accounts_receivable:
+      enabled: true
+      auto_create_invoices: true
+      dunning_enabled: true
+    
+    general_ledger:
+      enabled: true
+      auto_reconcile: false
+  
+  company_code: "1000"
+  fiscal_year_variant: "K4"
+  
+  bapis:
+    - BAPI_ACC_DOCUMENT_POST
+    - BAPI_ACC_DOCUMENT_DISPLAY
+    - BAPI_ACC_DOCUMENT_REV_POST

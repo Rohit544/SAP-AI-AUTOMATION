@@ -1,0 +1,306 @@
+# kubernetes/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sap-automation
+  namespace: sap-automation
+  labels:
+    app: sap-automation
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: sap-automation
+  template:
+    metadata:
+      labels:
+        app: sap-automation
+        version: v1
+    spec:
+      serviceAccountName: sap-automation-sa
+      
+      # Init container to check dependencies
+      initContainers:
+      - name: wait-for-postgres
+        image: busybox:1.28
+        command: ['sh', '-c', 'until nc -z postgres-service 5432; do echo waiting for postgres; sleep 2; done;']
+      
+      containers:
+      - name: sap-automation
+        image: your-registry.azurecr.io/sap-ai-automation:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        env:
+        - name: ENVIRONMENT
+          value: "production"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: sap-automation-secrets
+              key: database-url
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: sap-automation-config
+              key: redis-url
+        - name: SAP_HOST
+          valueFrom:
+            secretKeyRef:
+              name: sap-credentials
+              key: sap-host
+        - name: SAP_CLIENT
+          valueFrom:
+            secretKeyRef:
+              name: sap-credentials
+              key: sap-client
+        - name: SAP_USER
+          valueFrom:
+            secretKeyRef:
+              name: sap-credentials
+              key: sap-user
+        - name: SAP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: sap-credentials
+              key: sap-password
+        
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        
+        volumeMounts:
+        - name: models
+          mountPath: /app/models
+          readOnly: true
+        - name: logs
+          mountPath: /app/logs
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+      
+      volumes:
+      - name: models
+        persistentVolumeClaim:
+          claimName: sap-automation-models-pvc
+      - name: logs
+        emptyDir: {}
+      - name: config
+        configMap:
+          name: sap-automation-config
+      
+      # Anti-affinity to spread pods across nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - sap-automation
+              topologyKey: kubernetes.io/hostname
+
+---
+# kubernetes/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sap-automation-service
+  namespace: sap-automation
+  labels:
+    app: sap-automation
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: sap-automation
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+
+---
+# kubernetes/hpa.yaml - Horizontal Pod Autoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sap-automation-hpa
+  namespace: sap-automation
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sap-automation
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 15
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 4
+        periodSeconds: 15
+      selectPolicy: Max
+
+---
+# kubernetes/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sap-automation-config
+  namespace: sap-automation
+data:
+  redis-url: "redis://redis-service:6379/0"
+  log-level: "INFO"
+  max-workers: "4"
+  timeout: "300"
+  config.yaml: |
+    application:
+      name: sap-ai-automation
+      version: 1.0.0
+    
+    sap:
+      connection_timeout: 30
+      retry_attempts: 3
+      retry_delay: 5
+    
+    ai:
+      model_path: /app/models/
+      inference_batch_size: 32
+      max_sequence_length: 512
+    
+    automation:
+      parallel_tasks: 5
+      task_timeout: 600
+
+---
+# kubernetes/secrets.yaml.example
+# IMPORTANT: Never commit actual secrets to Git!
+# Create secrets using: kubectl create secret generic sap-credentials --from-literal=sap-user=myuser ...
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sap-credentials
+  namespace: sap-automation
+type: Opaque
+stringData:
+  sap-host: "sap.example.com"
+  sap-client: "100"
+  sap-user: "AUTOMATION_USER"
+  sap-password: "CHANGE_ME"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: sap-automation-secrets
+  namespace: sap-automation
+type: Opaque
+stringData:
+  database-url: "postgresql://sapuser:password@postgres-service:5432/sapautomation"
+  openai-api-key: "sk-..."
+  anthropic-api-key: "sk-ant-..."
+
+---
+# kubernetes/ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sap-automation-ingress
+  namespace: sap-automation
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+spec:
+  tls:
+  - hosts:
+    - sap-automation.yourdomain.com
+    secretName: sap-automation-tls
+  rules:
+  - host: sap-automation.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: sap-automation-service
+            port:
+              number: 80
+
+---
+# kubernetes/pvc.yaml - Persistent Volume Claim for ML Models
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sap-automation-models-pvc
+  namespace: sap-automation
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: managed-premium
+  resources:
+    requests:
+      storage: 50Gi

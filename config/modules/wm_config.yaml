@@ -1,0 +1,19 @@
+# ===== config/modules/wm_config.yaml =====
+wm:
+  module_name: "Warehouse Management"
+  module_code: "WM"
+  enabled: true
+  
+  warehouse_number: "001"
+  storage_type: "001"
+  
+  auto_create_to: true
+  auto_confirm_to: false
+  
+  strategies:
+    putaway: "FIFO"
+    picking: "LIFO"
+  
+  bapis:
+    - BAPI_WHSE_TO_CREATE
+    - BAPI_WHSE_STOCK_GETDETAIL

@@ -1,0 +1,20 @@
+# ===== config/modules/pm_config.yaml =====
+pm:
+  module_name: "Plant Maintenance"
+  module_code: "PM"
+  enabled: true
+  
+  plant: "1000"
+  planning_plant: "1000"
+  maintenance_plant: "1000"
+  
+  auto_create_work_order: true
+  auto_schedule_pm: true
+  
+  notification_types:
+    - "M1"  # Maintenance request
+    - "M2"  # Malfunction report
+  
+  bapis:
+    - BAPI_ALM_ORDER_MAINTAIN
+    - BAPI_ALM_NOTIF_CREATE

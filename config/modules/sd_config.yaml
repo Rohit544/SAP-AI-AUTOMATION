@@ -1,0 +1,24 @@
+# ===== config/modules/sd_config.yaml =====
+sd:
+  module_name: "Sales & Distribution"
+  module_code: "SD"
+  enabled: true
+  
+  sales_org: "1000"
+  distribution_channel: "10"
+  division: "00"
+  
+  auto_create_delivery: true
+  auto_post_goods_issue: false
+  auto_create_billing: true
+  
+  pricing:
+    auto_determine: true
+    condition_types:
+      - "PR00"  # Price
+      - "MWST"  # Tax
+  
+  bapis:
+    - BAPI_SALESORDER_CREATEFROMDAT2
+    - BAPI_SALESORDER_GETDETAIL
+    - BAPI_OUTB_DELIVERY_CREATE_SLS

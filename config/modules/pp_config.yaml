@@ -1,0 +1,21 @@
+# ===== config/modules/pp_config.yaml =====
+pp:
+  module_name: "Production Planning"
+  module_code: "PP"
+  enabled: true
+  
+  plant: "1000"
+  planning_plant: "1000"
+  
+  auto_create_prod_order: true
+  auto_release_prod_order: false
+  auto_confirm_operations: false
+  
+  mrp:
+    run_mode: "scheduled"  # scheduled, on-demand
+    planning_horizon_days: 365
+  
+  bapis:
+    - BAPI_PRODORD_CREATE
+    - BAPI_PRODORD_GET_DETAIL
+    - BAPI_REQUIREMENTS_PLANNING_MRP

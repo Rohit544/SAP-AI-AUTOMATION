@@ -1,0 +1,17 @@
+# ===== config/modules/lo_config.yaml =====
+lo:
+  module_name: "Logistics General"
+  module_code: "LO"
+  enabled: true
+  
+  batch_management:
+    enabled: true
+    auto_generate_batch: true
+  
+  serial_numbers:
+    enabled: true
+    auto_generate: false
+  
+  bapis:
+    - BAPI_BATCH_CREATE
+    - BAPI_BATCH_CHANGE

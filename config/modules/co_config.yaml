@@ -1,0 +1,20 @@
+
+# ===== config/modules/co_config.yaml =====
+co:
+  module_name: "Controlling"
+  module_code: "CO"
+  enabled: true
+  
+  controlling_area: "1000"
+  company_code: "1000"
+  
+  cost_center_planning:
+    enabled: true
+    planning_version: "0"
+  
+  internal_orders:
+    auto_settlement: false
+  
+  bapis:
+    - BAPI_COSTCENTER_CREATEMULTIPLE
+    - BAPI_COSTACTPLN_CHECKITEMS

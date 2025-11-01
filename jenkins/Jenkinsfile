@@ -1,0 +1,212 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_REGISTRY = 'your-registry.azurecr.io'
+        IMAGE_NAME = 'sap-ai-automation'
+        KUBECONFIG = credentials('kubeconfig-credentials-id')
+        SAP_CREDENTIALS = credentials('sap-credentials-id')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(
+                        script: "git rev-parse --short HEAD",
+                        returnStdout: true
+                    ).trim()
+                    env.IMAGE_TAG = "${env.GIT_BRANCH}-${env.GIT_COMMIT_SHORT}"
+                }
+            }
+        }
+        
+        stage('Setup Environment') {
+            steps {
+                sh '''
+                    echo "Setting up conda environment..."
+                    conda env list
+                '''
+            }
+        }
+        
+        stage('Lint & Code Quality') {
+            parallel {
+                stage('Black Formatting') {
+                    steps {
+                        sh '''
+                            docker run --rm -v $(pwd):/app \
+                            continuumio/miniconda3 \
+                            /bin/bash -c "pip install black && black --check /app/src"
+                        '''
+                    }
+                }
+                stage('Flake8 Linting') {
+                    steps {
+                        sh '''
+                            docker run --rm -v $(pwd):/app \
+                            continuumio/miniconda3 \
+                            /bin/bash -c "pip install flake8 && flake8 /app/src"
+                        '''
+                    }
+                }
+                stage('MyPy Type Check') {
+                    steps {
+                        sh '''
+                            docker run --rm -v $(pwd):/app \
+                            continuumio/miniconda3 \
+                            /bin/bash -c "pip install mypy && mypy /app/src"
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                sh '''
+                    docker-compose -f docker/docker-compose.yml run --rm \
+                    sap-automation \
+                    conda run -n sap-automation pytest tests/ \
+                    --cov=src \
+                    --cov-report=xml \
+                    --cov-report=html \
+                    --junitxml=test-results/junit.xml
+                '''
+            }
+            post {
+                always {
+                    junit 'test-results/junit.xml'
+                    publishHTML([
+                        reportDir: 'htmlcov',
+                        reportFiles: 'index.html',
+                        reportName: 'Coverage Report'
+                    ])
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                sh '''
+                    docker-compose -f docker/docker-compose.yml up -d
+                    sleep 30
+                    docker-compose -f docker/docker-compose.yml exec -T \
+                    sap-automation \
+                    conda run -n sap-automation pytest tests/integration/
+                '''
+            }
+            post {
+                always {
+                    sh 'docker-compose -f docker/docker-compose.yml down'
+                }
+            }
+        }
+        
+        stage('Security Scan') {
+            parallel {
+                stage('Trivy Container Scan') {
+                    steps {
+                        sh '''
+                            docker build -t ${IMAGE_NAME}:test -f docker/Dockerfile .
+                            trivy image --severity HIGH,CRITICAL ${IMAGE_NAME}:test
+                        '''
+                    }
+                }
+                stage('Bandit Security Scan') {
+                    steps {
+                        sh '''
+                            docker run --rm -v $(pwd):/app \
+                            continuumio/miniconda3 \
+                            /bin/bash -c "pip install bandit && bandit -r /app/src"
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build("${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}", "-f docker/Dockerfile .")
+                    docker.build("${DOCKER_REGISTRY}/${IMAGE_NAME}:latest", "-f docker/Dockerfile .")
+                }
+            }
+        }
+        
+        stage('Push to Registry') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-registry-credentials') {
+                        docker.image("${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG}").push()
+                        docker.image("${DOCKER_REGISTRY}/${IMAGE_NAME}:latest").push()
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to Kubernetes') {
+            when {
+                branch 'main'
+            }
+            stages {
+                stage('Deploy to Staging') {
+                    steps {
+                        sh '''
+                            kubectl config use-context staging-cluster
+                            kubectl set image deployment/sap-automation \
+                            sap-automation=${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
+                            -n staging
+                            kubectl rollout status deployment/sap-automation -n staging
+                        '''
+                    }
+                }
+                
+                stage('Smoke Tests') {
+                    steps {
+                        sh '''
+                            # Run smoke tests against staging
+                            curl -f http://staging.sap-automation.local/health || exit 1
+                        '''
+                    }
+                }
+                
+                stage('Deploy to Production') {
+                    when {
+                        expression {
+                            return env.BRANCH_NAME == 'main'
+                        }
+                    }
+                    steps {
+                        input message: 'Deploy to Production?', ok: 'Deploy'
+                        sh '''
+                            kubectl config use-context production-cluster
+                            kubectl set image deployment/sap-automation \
+                            sap-automation=${DOCKER_REGISTRY}/${IMAGE_NAME}:${IMAGE_TAG} \
+                            -n production
+                            kubectl rollout status deployment/sap-automation -n production
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline succeeded!'
+            // Send success notification (Slack, Email, etc.)
+        }
+        failure {
+            echo 'Pipeline failed!'
+            // Send failure notification
+        }
+    }
+}

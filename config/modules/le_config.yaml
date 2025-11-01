@@ -1,0 +1,15 @@
+# ===== config/modules/le_config.yaml =====
+le:
+  module_name: "Logistics Execution"
+  module_code: "LE"
+  enabled: true
+  
+  shipping_point: "1000"
+  
+  auto_create_shipment: true
+  auto_assign_carrier: true
+  
+  bapis:
+    - BAPI_SHIPMENT_CREATE
+    - BAPI_HU_CREATE
+    

@@ -1,0 +1,157 @@
+version: '3.8'
+
+services:
+  # Main SAP Automation Application
+  sap-automation:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sap-automation-app
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DATABASE_URL=postgresql://sapuser:sappass@postgres:5432/sapautomation
+      - REDIS_URL=redis://redis:6379/0
+      - SAP_HOST=${SAP_HOST}
+      - SAP_CLIENT=${SAP_CLIENT}
+      - SAP_USER=${SAP_USER}
+      - SAP_PASSWORD=${SAP_PASSWORD}
+    volumes:
+      - ../src:/app/src
+      - ../models:/app/models
+      - ../logs:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    networks:
+      - sap-network
+    restart: unless-stopped
+
+  # Celery Worker for Background Tasks
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sap-celery-worker
+    command: conda run -n sap-automation celery -A src.tasks worker --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://sapuser:sappass@postgres:5432/sapautomation
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=amqp://guest:guest@rabbitmq:5672//
+    volumes:
+      - ../src:/app/src
+      - ../models:/app/models
+      - ../logs:/app/logs
+    depends_on:
+      - rabbitmq
+      - redis
+      - postgres
+    networks:
+      - sap-network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: sap-postgres
+    environment:
+      - POSTGRES_USER=sapuser
+      - POSTGRES_PASSWORD=sappass
+      - POSTGRES_DB=sapautomation
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - sap-network
+    restart: unless-stopped
+
+  # Redis for Caching and Session Management
+  redis:
+    image: redis:7-alpine
+    container_name: sap-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - sap-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # RabbitMQ for Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: sap-rabbitmq
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - sap-network
+    restart: unless-stopped
+
+  # Jupyter Notebook for ML Development
+  jupyter:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sap-jupyter
+    command: conda run -n sap-automation jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    volumes:
+      - ../notebooks:/app/notebooks
+      - ../src:/app/src
+      - ../models:/app/models
+      - ../data:/app/data
+    networks:
+      - sap-network
+    restart: unless-stopped
+
+  # Prometheus for Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: sap-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - sap-network
+    restart: unless-stopped
+
+  # Grafana for Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sap-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - sap-network
+    restart: unless-stopped
+
+networks:
+  sap-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  prometheus-data:
+  grafana-data:
