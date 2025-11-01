@@ -430,18 +430,17 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Contact
 
 **Project Maintainer**: Your Name
-- Email: your.email@example.com
-- GitHub: [@yourusername](https://github.com/yourusername)
-- LinkedIn: [Your Profile](https://linkedin.com/in/yourprofile)
+- Email: monuoo1009@gmail.com
+- GitHub: https://github.com/Rohit544
+- LinkedIn: https://www.linkedin.com/in/rohitsojha/
 
-**Project Link**: https://github.com/yourusername/sap-ai-automation
+**Project Link**: https://github.com/Rohit544/SAP-AI-AUTOMATION.git
 
 ---
 
 ⭐ Star this repo if you find it helpful!
 
 **For GSoC 2026 applicants**: Feel free to reach out for collaboration or mentorship opportunities!
-
 
 ## Quick Setup
 
